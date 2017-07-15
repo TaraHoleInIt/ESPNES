@@ -6,6 +6,10 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Ticker.h>
+#include "controller.h"
+#include "nes.h"
+
+NESController NES;
 
 #define BIT( n ) ( 1 << n )
 
@@ -14,19 +18,6 @@
 
 #define BLINK_RATE_ERROR 100
 #define BLINK_RATE_OK 1000
-
-#define CLK_PIN 4
-#define LATCH_PIN 5
-#define DATA_PIN 12
-
-#define NES_KEY_A BIT( 7 )
-#define NES_KEY_B BIT( 6 )
-#define NES_KEY_SELECT BIT( 5 )
-#define NES_KEY_START BIT( 4 )
-#define NES_KEY_UP BIT( 3 )
-#define NES_KEY_DOWN BIT( 2 )
-#define NES_KEY_LEFT BIT( 1 )
-#define NES_KEY_RIGHT BIT( 0 )
 
 #define DS_KEY_A BIT( 0 )
 #define DS_KEY_B BIT( 1 )
@@ -43,6 +34,7 @@ const uint16_t TargetPort = 4950;
 const char* const RouterSSID = "";
 const char* const RouterPSK = "";
 
+Controller* CurrentController = NULL;
 Ticker LEDStatusTicker;
 WiFiUDP UDPClient;
 
@@ -57,27 +49,29 @@ void InitSerial( void );
 void TryWifiConnect( void );
 
 /* SendPadState:
- * Maps NES Keypad input (NESPadState) to the 3DS controller and
- * sends it out via UDP.
+ * Maps controller input to the 3DS HID and sends it along
+ * via UDP.
  */
-void SendPadState( uint32_t NESPadState ) {
+void SendPadState( void ) {
     uint32_t Buffer[ 5 ] = {
-        0,  /* HID state */
-        0,  /* CPad state */
-        0,  /* CStick state */
-        0,  /* Touch state */
-        0   /* Special buttons */
+        0x0,            /* HID state */
+        0x800800,       /* CPad state */
+        0x800800,       /* CStick state */
+        0x2000000,      /* Touch state */
+        0               /* Special buttons */
     };
     uint32_t DSPadState = 0;
+  
+    if ( CurrentController->A( ) ) DSPadState |= DS_KEY_A;
+    if ( CurrentController->B( ) ) DSPadState |= DS_KEY_B;
 
-    DSPadState |= ( NESPadState & NES_KEY_UP ) ? DS_KEY_DUP : 0;
-    DSPadState |= ( NESPadState & NES_KEY_DOWN ) ? DS_KEY_DDOWN : 0;
-    DSPadState |= ( NESPadState & NES_KEY_LEFT ) ? DS_KEY_DLEFT : 0;
-    DSPadState |= ( NESPadState & NES_KEY_RIGHT ) ? DS_KEY_DRIGHT : 0;
-    DSPadState |= ( NESPadState & NES_KEY_START ) ? DS_KEY_START : 0;
-    DSPadState |= ( NESPadState & NES_KEY_SELECT ) ? DS_KEY_SELECT : 0;
-    DSPadState |= ( NESPadState & NES_KEY_A ) ? DS_KEY_A : 0;
-    DSPadState |= ( NESPadState & NES_KEY_B ) ? DS_KEY_B : 0;
+    if ( CurrentController->Start( ) ) DSPadState |= DS_KEY_START;
+    if ( CurrentController->Select( ) ) DSPadState |= DS_KEY_SELECT;
+
+    if ( CurrentController->Up( ) ) DSPadState |= DS_KEY_DUP;
+    if ( CurrentController->Down( ) ) DSPadState |= DS_KEY_DDOWN;
+    if ( CurrentController->Left( ) ) DSPadState |= DS_KEY_DLEFT;
+    if ( CurrentController->Right( ) ) DSPadState |= DS_KEY_DRIGHT;
     
     Buffer[ 0 ] = ~DSPadState;
 
@@ -96,7 +90,7 @@ void uDelay( int TimeInUS ) {
     const int NOPsPerUSec = NOPsPerSecond / 1000000;
     int i = 0;
 
-    for ( i = 0; i < TimeInUS; i++ ) {
+    for ( i = 0; i < ( TimeInUS * NOPsPerUSec ); i++ ) {
         asm( "nop" );
     }
 }
@@ -106,39 +100,10 @@ void uDelay( int TimeInUS ) {
  */
 void Pulse( int Pin, int Delay ) {
   digitalWrite( Pin, HIGH );
-  delay( Delay );
+  uDelay( Delay );
+  
   digitalWrite( Pin, LOW );
-}
-
-/* ReadNESPad:
- * Returns a bitmask of all pressed keys on the NES keypad.
- *
- * Protocol info courtesy of: https://tresi.github.io/nes/
- */
-uint32_t ReadNESPad( void ) {
-    const int LatchPulseDelay = 2;
-    const int ClockPulseDelay = 1;
-    uint32_t Result = 0;
-    int Data = 0;
-    int i = 0;
-
-    /* After this pulse the data pin will go high until 8 bits have been clocked out */
-    Pulse( LATCH_PIN, LatchPulseDelay );
-
-    /* Read the first bit which happens to be the A button */
-    Data = digitalRead( DATA_PIN );
-    Result |= ( Data == LOW ) ? BIT( 7 ) : 0;
-
-    for ( i = 6; i >= 0; i-- ) {
-        /* Pulse the clock pin and get the next bit of data, repeat */
-        Pulse( CLK_PIN, ClockPulseDelay );
-        Data = digitalRead( DATA_PIN );
-       
-        /* A Button is pressed when the data pin is pulled low */
-        Result |= ( Data == LOW ) ? BIT( i ) : 0;
-    }
-
-    return Result;
+  uDelay( Delay );
 }
 
 /* BlinkLED:
@@ -201,14 +166,10 @@ void TryWifiConnect( void ) {
 
 void setup( void ) {
     pinMode( LED_BUILTIN, OUTPUT );
-    pinMode( CLK_PIN, OUTPUT );
-    pinMode( LATCH_PIN, OUTPUT );
-    pinMode( DATA_PIN, INPUT );
-
     digitalWrite( LED_BUILTIN, LOW );
-    digitalWrite( CLK_PIN, LOW );
-    digitalWrite( LATCH_PIN, LOW );
-    //digitalWrite( DATA_PIN, LOW );
+
+    Controller* CurrentController = ( Controller* ) &NES;
+    CurrentController->Init( );
 
     InitSerial( );
     TryWifiConnect( );
@@ -223,29 +184,15 @@ void setup( void ) {
     }
 }
 
-void PrintBits( uint32_t Value, int Count ) {
-    int i = 0;
-
-    for ( i = Count -1; i >= 0; i-- ) {
-        Serial.print( ( Value & BIT( i ) ) ? 1 : 0 );
-    }
-
-    Serial.println( );
-}
 
 void loop( void ) {
-    uint32_t PADState = 0;
-    int i = 0;
-
     if ( InitSuccessful == true ) {
         while ( true ) {
-            PADState = ReadNESPad( );
-            PrintBits( PADState, 8 );
+            if ( CurrentController->Poll( ) ) {
+                SendPadState( );
+            }
 
-            /* TODO:
-             * Stuff.
-             */
-            delay( 1000 );
+            delay( 16 );
         }
     }
 
