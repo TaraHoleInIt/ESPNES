@@ -18,6 +18,9 @@ class NESController : Controller {
 
         bool A( void );
         bool B( void );
+
+        virtual bool CPad( int* X, int* Y ) { };
+        virtual bool CStick( int* X, int* Y ) { };        
 };
 
 #endif

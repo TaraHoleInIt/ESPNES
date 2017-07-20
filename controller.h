@@ -20,6 +20,9 @@ class Controller {
 
         virtual bool Start( void ) { return false; }
         virtual bool Select( void ) { return false; }
+
+        virtual bool CPad( int* X, int* Y ) { };
+        virtual bool CStick( int* X, int* Y ) { };
 };
 
 #endif

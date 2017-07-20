@@ -6,10 +6,9 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Ticker.h>
+#include "hid3ds.h"
 #include "controller.h"
 #include "nes.h"
-
-NESController NES;
 
 #define BIT( n ) ( 1 << n )
 
@@ -19,25 +18,16 @@ NESController NES;
 #define BLINK_RATE_ERROR 100
 #define BLINK_RATE_OK 1000
 
-#define DS_KEY_A BIT( 0 )
-#define DS_KEY_B BIT( 1 )
-#define DS_KEY_SELECT BIT( 2 )
-#define DS_KEY_START BIT( 3 )
-#define DS_KEY_DRIGHT BIT( 4 )
-#define DS_KEY_DLEFT BIT( 5 )
-#define DS_KEY_DUP BIT( 6 )
-#define DS_KEY_DDOWN BIT( 7 )
-
-const char* const TargetIP = "192.168.2.205";
+const char* const TargetIP = "192.168.2.206";
 const uint16_t TargetPort = 4950;
 
 const char* const RouterSSID = "";
 const char* const RouterPSK = "";
 
-Controller* CurrentController = NULL;
 Ticker LEDStatusTicker;
 WiFiUDP UDPClient;
 
+Controller* CurrentController = NULL;
 bool InitSuccessful = false;
 
 void SendPadState( void );
@@ -54,25 +44,25 @@ void TryWifiConnect( void );
  */
 void SendPadState( void ) {
     uint32_t Buffer[ 5 ] = {
-        0x0,            /* HID state */
-        0x800800,       /* CPad state */
-        0x800800,       /* CStick state */
-        0x2000000,      /* Touch state */
-        0               /* Special buttons */
+        0,  /* HID state */
+        0x800800,  /* CPad state */
+        0x800800,  /* CStick state */
+        0x2000000,  /* Touch state */
+        0   /* Special buttons */
     };
     uint32_t DSPadState = 0;
   
-    if ( CurrentController->A( ) ) DSPadState |= DS_KEY_A;
-    if ( CurrentController->B( ) ) DSPadState |= DS_KEY_B;
+    if ( CurrentController->A( ) ) DSPadState |= KEY_A;
+    if ( CurrentController->B( ) ) DSPadState |= KEY_B;
 
-    if ( CurrentController->Start( ) ) DSPadState |= DS_KEY_START;
-    if ( CurrentController->Select( ) ) DSPadState |= DS_KEY_SELECT;
+    if ( CurrentController->Start( ) ) DSPadState |= KEY_START;
+    if ( CurrentController->Select( ) ) DSPadState |= KEY_SELECT;
 
-    if ( CurrentController->Up( ) ) DSPadState |= DS_KEY_DUP;
-    if ( CurrentController->Down( ) ) DSPadState |= DS_KEY_DDOWN;
-    if ( CurrentController->Left( ) ) DSPadState |= DS_KEY_DLEFT;
-    if ( CurrentController->Right( ) ) DSPadState |= DS_KEY_DRIGHT;
-    
+    if ( CurrentController->Up( ) ) DSPadState |= KEY_DUP;
+    if ( CurrentController->Down( ) ) DSPadState |= KEY_DDOWN;
+    if ( CurrentController->Left( ) ) DSPadState |= KEY_DLEFT;
+    if ( CurrentController->Right( ) ) DSPadState |= KEY_DRIGHT;
+
     Buffer[ 0 ] = ~DSPadState;
 
     /* Send our keypad state to the input redirection host */
@@ -99,11 +89,13 @@ void uDelay( int TimeInUS ) {
  * Brings a (Pin) high or low for (Delay) microseconds and back again.
  */
 void Pulse( int Pin, int Delay ) {
-  digitalWrite( Pin, HIGH );
-  uDelay( Delay );
+    int State = digitalRead( Pin );
+
+    digitalWrite( Pin, ! State );
+    uDelay( Delay );
   
-  digitalWrite( Pin, LOW );
-  uDelay( Delay );
+    digitalWrite( Pin, State );
+    uDelay( Delay );
 }
 
 /* BlinkLED:
@@ -168,8 +160,13 @@ void setup( void ) {
     pinMode( LED_BUILTIN, OUTPUT );
     digitalWrite( LED_BUILTIN, LOW );
 
-    Controller* CurrentController = ( Controller* ) &NES;
-    CurrentController->Init( );
+    /* TODO:
+     * Multiple controller types.
+     */
+    CurrentController = ( Controller* ) new NESController( );
+
+    if ( CurrentController )
+        CurrentController->Init( );
 
     InitSerial( );
     TryWifiConnect( );
@@ -188,7 +185,7 @@ void setup( void ) {
 void loop( void ) {
     if ( InitSuccessful == true ) {
         while ( true ) {
-            if ( CurrentController->Poll( ) ) {
+            if ( CurrentController && CurrentController->Poll( ) ) {
                 SendPadState( );
             }
 

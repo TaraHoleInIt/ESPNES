@@ -2,6 +2,12 @@
 #include "controller.h"
 #include "nes.h"
 
+/* Configuration:
+ * Uncomment this to treat the NES Controller DPAD as the
+ * Circle Pad on the 3DS.
+ */
+//#define NES_DPAD_IS_3DS_CPAD
+
 #define BIT( n ) ( 1 << n )
 
 #define CLK_PIN D4
@@ -60,8 +66,6 @@ bool NESController::Poll( void ) {
     HasChanged = PadState != Result;
     PadState = Result;
 
-    //Serial.printf( "ms: %d, res: %x, ps: %x\n", millis( ), Result, PadState );
-
     return HasChanged;
 }
 
@@ -81,18 +85,24 @@ bool NESController::Select( void ) {
     return ( PadState & KEY_SELECT ) ? true : false;
 }
 
-bool NESController::Up( void ) {
-    return ( PadState & KEY_UP ) ? true : false;
-}
+#if NES_DPAD_IS_3DS_CPAD
+    bool NESController::CPad( int* X, int* Y ) {
+        return false;
+    }
+#else
+    bool NESController::Up( void ) {
+        return ( PadState & KEY_UP ) ? true : false;
+    }
 
-bool NESController::Down( void ) {
-    return ( PadState & KEY_DOWN ) ? true : false;
-}
+    bool NESController::Down( void ) {
+        return ( PadState & KEY_DOWN ) ? true : false;
+    }
 
-bool NESController::Left( void ) {
-    return ( PadState & KEY_LEFT ) ? true : false;
-}
+    bool NESController::Left( void ) {
+        return ( PadState & KEY_LEFT ) ? true : false;
+    }
 
-bool NESController::Right( void ) {
-    return ( PadState & KEY_RIGHT ) ? true : false;
-}
+    bool NESController::Right( void ) {
+        return ( PadState & KEY_RIGHT ) ? true : false;
+    }
+#endif
