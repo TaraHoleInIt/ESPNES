@@ -29,8 +29,47 @@ void PrintByte( uint8_t Data ) {
     printf( "\r\n" );
 }
 
+#if 0
+static const char* ConfigTypeToStr( int Type ) {
+    const char* Types[ ] = {
+        "Undefined",
+        "Boolean",
+        "Integer",
+        "String"
+    };
+
+    return ( Type < ConfigType_NumTypes ) ? Types[ Type ] : "";
+}
+#endif
+
+static size_t ConfigVarToString( struct ConfigOption* C, char* OutStr, size_t OutStrLen ) {
+    char* StringValue = ( char* ) C->VariablePtr;
+    bool* BoolValue = ( bool* ) C->VariablePtr;
+    int* IntValue = ( int* ) C->VariablePtr;
+    size_t Result = 0;
+
+    if ( C && C->VariablePtr ) {
+        switch ( C->ConfigType ) {
+            case ConfigType_Bool:
+                Result = snprintf( OutStr, OutStrLen, "%s", ( *BoolValue == false ) ? "false" : "true" );
+                break;
+            case ConfigType_Int:
+                Result = snprintf( OutStr, OutStrLen, "%d", *IntValue );
+                break;
+            case ConfigType_String:
+                Result = snprintf( OutStr, OutStrLen, "%s", StringValue );
+                break;
+            default:
+                Result = snprintf( OutStr, OutStrLen, "Undefined" );
+                break;
+        };
+    }
+
+    return Result;
+}
 
 void PrintControllerInfo( struct Controller* C ) {
+    char ValueStr[ 64 ];
     int i = 0;
 
     printf( "Controller: %s\r\n", C->ControllerName );
@@ -38,6 +77,13 @@ void PrintControllerInfo( struct Controller* C ) {
 
     for ( ; i < C->ButtonCount; i++ ) {
         printf( "\t%s\r\n", C->Buttons[ i ].Name );
+    }
+
+    printf( "Configuration options:\r\n" );
+
+    for ( i = 0; i < C->OptionsCount; i++ ) {
+        ConfigVarToString( &C->Options[ i ], ValueStr, sizeof( ValueStr ) );
+        printf( "\t%s: %s\r\n", C->Options[ i ].OptionName, ValueStr );
     }
 
     printf( "\r\n" );

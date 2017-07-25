@@ -8,10 +8,7 @@
 
 #include "controller.h"
 #include "util.h"
-
-#define PIN_NES_CLK 14
-#define PIN_NES_LATCH 13
-#define PIN_NES_DATA 12
+#include "config.h"
 
 #define LATCH_PULSE_US 12
 #define CLK_PULSE_US 6
@@ -37,7 +34,12 @@ static bool Poll( void );
 static bool Init( void );
 static void Close( void );
 
+static bool DPadAsCPad = false;
 static uint8_t PadState = 0;
+
+static int Pin_CLK = 14;
+static int Pin_LATCH = 13;
+static int Pin_DATA = 12;
 
 static struct Button NESButtons[ ] = {
     { "A", Get_A },
@@ -50,6 +52,13 @@ static struct Button NESButtons[ ] = {
     { "Right", Get_Right }
 };
 
+static struct ConfigOption NESConfig[ ] = {
+    { "Map NES DPad to CPad", ConfigType_Bool, ( void* ) &DPadAsCPad },
+    { "Clock GPIO pin", ConfigType_Int, ( void* ) &Pin_CLK },
+    { "Latch GPIO pin", ConfigType_Int, ( void* ) &Pin_LATCH },
+    { "Data GPIO pin", ConfigType_Int, ( void* ) &Pin_DATA }
+};
+
 struct Controller NESController = {
     "NES Controller",
     Init,
@@ -57,15 +66,17 @@ struct Controller NESController = {
     Poll,
     NESButtons,
     ( sizeof( NESButtons ) / sizeof( NESButtons[ 0 ] ) ),
+    NESConfig,
+    ( sizeof( NESConfig ) / sizeof( NESConfig[ 0 ] ) )
 };
 
 static bool Init( void ) {
-    gpio_enable( PIN_NES_CLK, GPIO_OUTPUT );
-    gpio_enable( PIN_NES_LATCH, GPIO_OUTPUT );
-    gpio_enable( PIN_NES_DATA, GPIO_INPUT );
+    gpio_enable( Pin_CLK, GPIO_OUTPUT );
+    gpio_enable( Pin_LATCH, GPIO_OUTPUT );
+    gpio_enable( Pin_DATA, GPIO_INPUT );
 
-    gpio_write( PIN_NES_CLK, false );
-    gpio_write( PIN_NES_LATCH, false );    
+    gpio_write( Pin_CLK, false );
+    gpio_write( Pin_LATCH, false );    
 
     return true;
 }
@@ -78,12 +89,12 @@ static bool Poll( void ) {
     uint8_t Result = 0;
     int i = 7;
 
-    PulsePin( PIN_NES_LATCH, LATCH_PULSE_US );
+    PulsePin( Pin_LATCH, LATCH_PULSE_US );
 
     do {
-        Result |= ( gpio_read( PIN_NES_DATA ) == false ) ? BIT( i ) : 0;
+        Result |= ( gpio_read( Pin_DATA ) == false ) ? BIT( i ) : 0;
 
-        PulsePin( PIN_NES_CLK, CLK_PULSE_US );
+        PulsePin( Pin_CLK, CLK_PULSE_US );
         i--;
     } while ( i >= 0 );
 

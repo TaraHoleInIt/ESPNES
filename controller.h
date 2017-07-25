@@ -1,6 +1,8 @@
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
 
+#include "config.h"
+
 typedef bool ( *GetButtonState ) ( void );
 typedef bool ( *GetAxisState ) ( int* DX, int* DY );
 typedef bool ( *PollCallback ) ( void );
@@ -18,7 +20,10 @@ struct Controller {
     bool ( *Poll ) ( void );
 
     struct Button* Buttons;
-    int ButtonCount;    
+    int ButtonCount;
+
+    struct ConfigOption* Options;
+    int OptionsCount;
 };
 
 #endif
