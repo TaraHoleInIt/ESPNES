@@ -26,7 +26,7 @@ void PrintByte( uint8_t Data ) {
         uart_putc( 0, ( Data & BIT( i ) ) ? '1' : '0' );
     }
 
-    printf( "\r\n" );
+    printf( "\n" );
 }
 
 #if 0
@@ -72,21 +72,21 @@ void PrintControllerInfo( struct Controller* C ) {
     char ValueStr[ 64 ];
     int i = 0;
 
-    printf( "Controller: %s\r\n", C->ControllerName );
+    printf( "Controller: %s\n", C->ControllerName );
     printf( "Buttons:\n" );
 
     for ( ; i < C->ButtonCount; i++ ) {
-        printf( "\t%s\r\n", C->Buttons[ i ].Name );
+        printf( "\t%s\n", C->Buttons[ i ].Name );
     }
 
-    printf( "Configuration options:\r\n" );
+    printf( "Configuration options:\n" );
 
     for ( i = 0; i < C->OptionsCount; i++ ) {
         ConfigVarToString( &C->Options[ i ], ValueStr, sizeof( ValueStr ) );
-        printf( "\t%s: %s\r\n", C->Options[ i ].OptionName, ValueStr );
+        printf( "\t%s: %s\n", C->Options[ i ].OptionName, ValueStr );
     }
 
-    printf( "\r\n" );
+    printf( "\n" );
 }
 
 void PrintPressedButtons( struct Controller* C ) {
@@ -98,5 +98,5 @@ void PrintPressedButtons( struct Controller* C ) {
         printf( "%s, ", ( C->Buttons[ i ].StateFn != NULL && C->Buttons[ i ].StateFn( ) == true ) ? C->Buttons[ i ].Name : "" );
     }
 
-    printf( "\r\n" );
+    printf( "\n" );
 }

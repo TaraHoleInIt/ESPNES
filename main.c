@@ -34,7 +34,7 @@ void PrintPadTask( void* Param ) {
 void user_init( void ) {
     uart_set_baud( 0, 115200 );
     
-    printf( "Ready...\r\n" );
+    printf( "Ready...\n" );
 
     gpio_enable( LED_Pin, GPIO_OUTPUT );
     gpio_write( LED_Pin, true );
@@ -44,5 +44,5 @@ void user_init( void ) {
         xTaskCreate( PrintPadTask, "PrintPadTask", 256, NULL, 2, NULL );
     }
 
-    sdk_wifi_set_opmode( NULL_MODE );
+    printf( "\n" );
 }
